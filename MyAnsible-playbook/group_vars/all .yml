@@ -1,0 +1,9 @@
+php_version: 8.0
+username: ubuntu
+server_name: laravel
+vhost_name: laravel
+server_root_document: "/var/www/html"
+
+db_user: totokedb
+db_name: mydatabase
+db_password: totokedb
