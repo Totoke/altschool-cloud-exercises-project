@@ -1,7 +1,7 @@
 php_version: 8.0
 username: ubuntu
-server_name: laravel
-vhost_name: laravel
+server_name: Gitlaravel
+vhost_name: Gitlaravel
 server_root_document: "/var/www/html"
 
 db_user: totokedb
