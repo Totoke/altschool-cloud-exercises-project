@@ -8,6 +8,14 @@
                     key="{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
                     state=present
 
+- hosts: all
+  become: true
+  become_user: root
+  gather_facts: false
+  tasks:
+    - name: Upgrade system
+      apt: upgrade=dist update_cache=yes
+      
     - name: Add php repository
       apt_repository:
         repo: 'ppa:ondrej/php'  
