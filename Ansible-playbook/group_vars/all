@@ -1,0 +1,9 @@
+php_version: 8.0
+username: ubuntu
+server_name: 52.23.185.45 
+vhost_name: 52.23.185.45
+server_root_document: 
+
+db_user: tokedatabase
+db_name: tokedatabase
+db_password: tokedatabase

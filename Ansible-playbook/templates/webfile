@@ -1,0 +1,7 @@
+<?php
+
+use Illuminate\Support\Facades\Routes;
+
+Routes::get('/', function () {
+    return view('welcome');
+})

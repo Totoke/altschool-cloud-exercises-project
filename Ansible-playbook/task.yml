@@ -1,0 +1,195 @@
+- hosts: all
+  become: true
+  become_user: root
+  gather_facts: false
+  tasks:
+    - name: Deploy SSH key
+      authorized_key: user=ubuntu
+                     key="{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+                     state=present
+
+- hosts: all
+  become: true
+  become_user: root
+  gather_facts: false
+  tasks:
+    - name: Upgrade system
+      apt: upgrade=dist update_cache=yes
+
+    - name: Add php repository
+      apt_repository:
+         repo: 'ppa:ondrej/php' 
+
+    - name: Install PHP MB
+      apt: name=php{{php_version}}-mbstring state=latest
+
+    - name: Install PHP XML
+      apt: name=php-xml state=latest
+
+    - name: Install PHP
+      apt: name=php{{php_version}} state=latest
+
+    - name: Install unzip
+      apt: name=unzip state=latest
+
+    - name: Download php-composer
+      get_url:
+        url: https://getcomposer.org/installer
+        dest: /tmp/installer
+
+    - name: Insatll composer
+      shell: cat /tmp/installer | php -- --install-dir=/usr/local/bin
+      args: 
+        creates: /usr/local/bin/composer
+
+    - name: rename composer.phar to composer
+      shell: mv /usr/local/bin/composer.phar /usr/local/bin/composer
+      args:
+        creates: /usr/local/bin/composer
+
+    - name: make composer executable
+      file: 
+        path: /usr/local/bin/composer
+        mode: a+x
+        state: file
+
+    - name: Install apache2 server
+      apt:
+        name: apache2
+        state: present
+
+    - name: Install php 8.0 repo
+      shell:
+          echo                              
+          sudo apt update -y
+          sudo apt install -y php8.0-common php8.0-cli -y
+
+    - name: Install lamp stack
+      apt:
+        pkg: 
+          - php8.0-mysql 
+          - php8.0-curl
+          - php8.0-cgi
+          - php8.0-xsl
+          - php8.0-gd
+          - php8.0-mbstring
+          - php8.0-zip
+          - php8.0-xmlrpc
+          - php8.0-soap
+          - php8.0-intl
+          - libapache2-mod-php
+        state: present
+        update_cache: yes
+
+    - name: Install python, pip etc
+      shell: apt-get -y install "{{ item }}"
+      with_items:
+        - pip
+        - python3-dev
+        - default-libmysqlclient-dev
+        - build-essential
+
+    - name: Install MySQL server and client
+      shell:
+          apt-get -y install mysql-server
+          apt-get -y install mysql-client
+          pip install myqslclient
+          sudo apt-get install php-mysql -y
+          sudo apt-get install php-sqlite3 -y
+
+    - name: start MySQL service
+      action: service name=mysql state=started
+
+    - name: create mysql db
+      mysql_db: name=tokedatabase state=present
+
+    - name: create user mysql
+      mysql_user: name=tokedatabase password=tokedatabase priv=tokedatabase.*:ALL host='%' state=present
+
+    - name: Restart mysql
+      service:                     
+        name: mysql
+        state: restarted 
+
+    #- name: remove gitlaravel
+    #  shell: sudo rm -rf /var/www/html/{{ server_name }}/    
+
+    - name: checkout latest code from github
+      git: >
+        repo=https://fithub.com/f1amy/laravel-realworld-example-app.git
+        dest=/opt/{{ server_name }}
+        force=yes
+        accept_hostkey=yes
+
+    - name: copy bash script to location
+      template: src=bash dest="/var/www/html/{{ server_name }}/bashscript.sh"
+
+    - name: run bash script 
+      shell: sh /var/www/html/{{ server_name }}/bashsript.sh -y
+
+    - name: permission for composer install
+      shell: sudo chmod -R 777 /var/www/html/{{ server_name }}/
+
+    - name: remove default webphp from routes
+      shell: sudo rm -rf /var/www/html/{{ server_name }}/routes/web.php
+
+    - name: create web.php in routes
+      template: src=webfile dest="/var/www/html/{{ server_name }}/routes/web.php" 
+
+    - name: composer install
+      become: false
+      composer:
+        command: install
+        global_command: false
+        working_dir: /var/www/html/{{ server_name }}/        
+
+    #- name: "composer update"
+    #  become: false
+    #  composer: 
+    #    command: update
+    #     global_command: false
+    #    working_dir: /var/www/html/{{ server_name }}/
+
+    - name: change permission for files and directories
+      shell: 
+        sudo chown -R www-data:www-data /var/www/html/{{ server_name }}/
+        sudo chmod -R 775 /var/www/html/{{ server_name }}/storage
+        sudo chmod 777 /var/www/html/{{ server_name }}/artisan
+
+    - name: Create .env file for database
+      template: src=env.example dest="/var/www/html/{{ server_name }}/.env" 
+
+    - name: Generate artisan key
+      shell: php /var/www/html/{{ server_name }}/artisan key:generate
+
+    - name: start mysql service
+      service: name=mysql state=restarted
+
+    - name: update and upgrade
+      shell: 
+          sudo apt update && sudo apy upgarde -y
+          sudo systemctl reload apache2
+
+    - name: run migration
+      shell: sudo php /var/www/html/{{ server_name }}/artisan migrate
+
+    - name: Remove default apache server config from sites-enabled
+      file: name=/etc/apache2/sites-enabled/000-default.conf state=absent
+
+    - name: Create apache server for domain
+      template: src=webconf dest="/et/apache2/sites-available/{{ server_name }}.conf"
+
+    - name: Permission for laravel conf file
+      shell: sudo chmod -R 777 /et/apache2/sites-available/{{ server_name }}.conf
+
+    - name: Update a2ensite
+      command: a2ensite {{ server_name }}
+
+    - name: Enable apache rewrite module
+      command: a2enmod rewrite
+
+    - name: restart apache2
+      service: 
+        state: restarted
+        name: apache2
+        daemon_reload: yes                           
